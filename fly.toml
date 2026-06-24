@@ -1,0 +1,12 @@
+app = "heist-support-bot"
+primary_region = "lhr"
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+
+[mounts]
+  source = "heist_data"
+  destination = "/app/data"

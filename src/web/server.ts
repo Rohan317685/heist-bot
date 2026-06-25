@@ -65,10 +65,6 @@ export async function initUserNameCache(): Promise<void> {
 async function lookupSlackNames(userIds: string[]): Promise<Map<string, string>> {
   const result = new Map<string, string>();
 
-  if (!userCacheLoaded && !userCacheLoading) {
-    initUserNameCache();
-  }
-
   const missing = userIds.filter((id) => !userNameCache.has(id));
 
   if (missing.length > 0 && slackApp) {
@@ -845,6 +841,7 @@ async function load() {
 }
 
 load();
+setInterval(load, 30000);
 </script>
 </body></html>`;
 }

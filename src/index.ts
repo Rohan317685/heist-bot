@@ -1,7 +1,6 @@
 import { config } from './config';
 import { createSlackApp } from './slack/app';
 import { createWebServer } from './web/server';
-import { initUserNameCache } from './web/server';
 import { seedAdminsFromEnv } from './db/support';
 
 async function main(): Promise<void> {
@@ -18,8 +17,6 @@ async function main(): Promise<void> {
   webApp.listen(config.web.port, () => {
     console.log(`Web server running on port ${config.web.port}`);
   });
-
-  setTimeout(() => initUserNameCache(), 3000);
 
   process.on('SIGINT', async () => {
     console.log('\nShutting down...');

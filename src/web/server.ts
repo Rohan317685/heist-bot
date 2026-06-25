@@ -877,18 +877,19 @@ async function load(){
     });
     h += '</tbody></table>';
     document.getElementById('topCreators').innerHTML = lb.creators.length ? h : '<div class="empty">No tickets yet.</div>';
-  }catch(e){}
+  }catch(e){ console.error('leaderboard failed:', e); }
 
   try{
     const ds = await fetch('/api/stats/detail').then(r=>r.json());
     const ctx = document.getElementById('weekdayChart').getContext('2d');
+    const byWeekday = Array.isArray(ds.byWeekday) ? ds.byWeekday : [];
     new Chart(ctx,{
       type:'bar',
       data:{
         labels:dayNames,
         datasets:[{
           label:'Tickets',
-          data:dayNames.map((_,i)=>{const d=ds.byWeekday.find((w)=>w.weekday===i);return d?d.count:0}),
+          data:dayNames.map((_,i)=>{const d=byWeekday.find((w)=>w.weekday===i);return d?d.count:0}),
           backgroundColor:'rgba(255,255,255,0.2)'
         }]
       },
@@ -908,12 +909,15 @@ async function load(){
     } else {
       sum += '<div class="stat-row"><span>Avg Response Time</span><span class="val">N/A</span></div>';
     }
-    const totalTickets = ds.byWeekday.reduce((a,b)=>a+b.count,0);
+    const totalTickets = byWeekday.reduce((a,b)=>a+b.count,0);
     sum += '<div class="stat-row"><span>Total Tickets</span><span class="val">'+totalTickets+'</span></div>';
-    const busiest = ds.byWeekday.reduce((a,b)=>b.count>a.count?b:a,{weekday:0,count:0});
+    const busiest = byWeekday.reduce((a,b)=>b.count>a.count?b:a,{weekday:0,count:0});
     sum += '<div class="stat-row"><span>Busiest Day</span><span class="val">'+dayNames[busiest.weekday]+'</span></div>';
     document.getElementById('summary').innerHTML = sum;
-  }catch(e){}
+  }catch(e){
+    console.error('Stats detail failed:', e);
+    document.getElementById('summary').innerHTML = '<div class="stat-row"><span>Could not load summary</span></div>';
+  }
 }
 
 load();

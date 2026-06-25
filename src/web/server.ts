@@ -69,22 +69,21 @@ async function lookupSlackNames(userIds: string[]): Promise<Map<string, string>>
     initUserNameCache();
   }
 
-  if (!userCacheLoaded) {
-    for (const id of userIds) result.set(id, id);
-    return result;
-  }
-
   const missing = userIds.filter((id) => !userNameCache.has(id));
+
   if (missing.length > 0 && slackApp) {
     try {
-      for (let i = 0; i < missing.length; i++) {
-        const resp: any = await slackApp.client.users.info({ user: missing[i] });
-        if (resp.user) {
-          const u = resp.user;
-          userNameCache.set(u.id, u.profile?.display_name || u.profile?.real_name || u.real_name || u.name || u.id);
-        }
-        if (i < missing.length - 1) await new Promise((r) => setTimeout(r, 1000));
-      }
+      const batch = missing.map(async (id) => {
+        try {
+          const resp = await (slackApp!.client as any).users.info({ user: id });
+          if (resp.user) {
+            const u = resp.user as any;
+            const name = u.profile?.display_name || u.profile?.real_name || u.real_name || u.name || id;
+            userNameCache.set(id, name);
+          }
+        } catch (e) { /* skip */ }
+      });
+      await Promise.all(batch);
     } catch (err) {
       console.error('[web] Failed to look up missing users:', err);
     }

@@ -15,11 +15,11 @@ async function main(): Promise<void> {
   console.log('Admins seeded from env');
 
   const webApp = createWebServer(slackApp);
-  await initUserNameCache();
-
   webApp.listen(config.web.port, () => {
     console.log(`Web server running on port ${config.web.port}`);
   });
+
+  setTimeout(() => initUserNameCache(), 3000);
 
   process.on('SIGINT', async () => {
     console.log('\nShutting down...');

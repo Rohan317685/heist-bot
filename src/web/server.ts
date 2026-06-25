@@ -272,6 +272,10 @@ export function createWebServer(app?: App): express.Application {
   );
 
   web.get('/auth/login', (_req, res) => {
+    res.send(loginPageHtml());
+  });
+
+  web.get('/auth/hc', (_req, res) => {
     res.redirect(getAuthorizationUrl());
   });
 
@@ -313,11 +317,7 @@ export function createWebServer(app?: App): express.Application {
 
   web.get('/auth/logout', (req, res) => {
     req.session.regenerate((err) => {
-      if (err) {
-        res.redirect('/');
-        return;
-      }
-      res.redirect('/auth/login');
+      res.send(logoutPageHtml());
     });
   });
 
@@ -569,6 +569,58 @@ export function createWebServer(app?: App): express.Application {
   });
 
   return web;
+}
+
+function loginPageHtml(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Support — Login</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a14 url(https://cdn.hackclub.com/019efbe9-dfb5-7efe-bf10-544a34a0fedd/abstract-perspective-graph-pattern-grid-vector-design_1017-45232.avif) center/cover fixed;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
+body::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,0.88);pointer-events:none;z-index:-1}
+.box{background:rgba(255,255,255,0.03);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:40px 50px;text-align:center;max-width:400px;width:90%}
+.box h1{font-size:22px;color:#fff;margin-bottom:8px}
+.box p{color:#888;font-size:14px;margin-bottom:24px}
+.login-btn{display:inline-block;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.15);padding:12px 32px;border-radius:6px;font-size:15px;font-weight:600;text-decoration:none;cursor:pointer;transition:all .15s}
+.login-btn:hover{background:rgba(255,255,255,0.18)}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>Support Dashboard</h1>
+  <p>Sign in with your Hack Club account</p>
+  <a href="/auth/hc" class="login-btn">Login with Hack Club</a>
+</div>
+</body></html>`;
+}
+
+function logoutPageHtml(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Support — Logged Out</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a14 url(https://cdn.hackclub.com/019efbe9-dfb5-7efe-bf10-544a34a0fedd/abstract-perspective-graph-pattern-grid-vector-design_1017-45232.avif) center/cover fixed;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
+body::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,0.88);pointer-events:none;z-index:-1}
+.box{background:rgba(255,255,255,0.03);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:40px 50px;text-align:center;max-width:400px;width:90%}
+.box h1{font-size:22px;color:#fff;margin-bottom:8px}
+.box p{color:#888;font-size:14px;margin-bottom:24px}
+.login-btn{display:inline-block;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.15);padding:12px 32px;border-radius:6px;font-size:15px;font-weight:600;text-decoration:none;cursor:pointer;transition:all .15s}
+.login-btn:hover{background:rgba(255,255,255,0.18)}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>Logged Out</h1>
+  <p>You have been signed out.</p>
+  <a href="/auth/hc" class="login-btn">Login with Hack Club</a>
+</div>
+</body></html>`;
 }
 
 function deniedHtml(name: string): string {

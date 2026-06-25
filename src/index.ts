@@ -14,9 +14,9 @@ async function main(): Promise<void> {
   seedAdminsFromEnv();
   console.log('Admins seeded from env');
 
+  const webApp = createWebServer(slackApp);
   await initUserNameCache();
 
-  const webApp = createWebServer(slackApp);
   webApp.listen(config.web.port, () => {
     console.log(`Web server running on port ${config.web.port}`);
   });

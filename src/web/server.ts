@@ -553,7 +553,8 @@ export function createWebServer(app?: App): express.Application {
         byWeekday: getTicketCountByWeekday(),
       });
     } catch (err) {
-      res.status(500).json({ error: 'Failed to load stats' });
+      console.error('[web] Stats detail error:', err);
+      res.json({ avgResponseTime: null, byWeekday: [] });
     }
   });
 

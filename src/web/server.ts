@@ -68,7 +68,15 @@ async function lookupSlackNames(userIds: string[]): Promise<Map<string, string>>
   if (!userCacheLoaded && !userCacheLoading) {
     initUserNameCache();
   }
+
   if (userCacheLoading) {
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      if (userCacheLoaded) break;
+    }
+  }
+
+  if (!userCacheLoaded || userNameCache.size === 0) {
     for (const id of userIds) result.set(id, id);
     return result;
   }
@@ -155,7 +163,7 @@ body::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,0.85);point
   <div class="header">
     <div class="info">
       <div class="tnum">#${ticket.ticket_number} <span class="badge ${st}" id="ticketStatus">${st}</span></div>
-      <div class="meta">Created ${new Date(ticket.created_at).toLocaleString()} by ${escapeHtmlInline(ticket.user_id)}</div>
+      <div class="meta">Created ${new Date(ticket.created_at).toLocaleString()} by ${escapeHtmlInline((ticket as any).user_name || ticket.user_id)}</div>
       ${ticket.resolved_at ? '<div class="meta">Resolved ' + new Date(ticket.resolved_at).toLocaleString() + ' by ' + escapeHtmlInline(ticket.resolved_by) + '</div>' : ''}
     </div>
     <button class="action-btn ${btnAction}" id="actionBtn" onclick="toggleStatus()">${btnLabel}</button>
@@ -334,10 +342,14 @@ export function createWebServer(app?: App): express.Application {
     res.json(getDailyStats());
   });
 
-  web.get('/api/tickets', requireAuth, (req, res) => {
+  web.get('/api/tickets', requireAuth, async (req, res) => {
     const limit = parseInt((req.query.limit as string) || '20', 10);
     const offset = parseInt((req.query.offset as string) || '0', 10);
-    res.json(getAllTickets(limit, offset));
+    const tickets = getAllTickets(limit, offset);
+    const userIds = [...new Set(tickets.map((t) => t.user_id))];
+    const names = await lookupSlackNames(userIds);
+    const enriched = tickets.map((t) => ({ ...t, user_name: names.get(t.user_id) || t.user_id }));
+    res.json(enriched);
   });
 
   web.get('/api/tickets/number/:number', requireAuth, (req, res) => {
@@ -513,13 +525,15 @@ export function createWebServer(app?: App): express.Application {
     }
   });
 
-  web.get('/ticket/:number', requireAuth, (_req, res) => {
+  web.get('/ticket/:number', requireAuth, async (_req, res) => {
     const num = parseInt(_req.params.number as string, 10);
     const ticket = getTicketByNumber(num);
     if (!ticket) {
       res.status(404).send('<p>Ticket not found. <a href="/">Back</a></p>');
       return;
     }
+    const names = await lookupSlackNames([ticket.user_id]);
+    (ticket as any).user_name = names.get(ticket.user_id) || ticket.user_id;
     res.send(ticketPageHtml(ticket));
   });
 
@@ -724,7 +738,7 @@ function renderTickets() {
   for (const t of tickets) {
     html += '<tr class="t-row" onclick="goTicket('+t.ticket_number+')">'
       + '<td>#' + t.ticket_number + '</td>'
-      + '<td>' + esc(t.user_id) + '</td>'
+      + '<td>' + esc(t.user_name || t.user_id) + '</td>'
       + '<td><span class="badge '+t.status+'">'+t.status+'</span></td>'
       + '<td>'+d(t.created_at)+'</td>'
       + '<td onclick="event.stopPropagation()">' + (t.status==='open'

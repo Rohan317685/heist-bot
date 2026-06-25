@@ -2,7 +2,7 @@ import express from 'express';
 import session from 'express-session';
 import { App } from '@slack/bolt';
 import { getTicketStats, getAllTickets, getTicket, getTicketByNumber, resolveTicket, reopenTicket, getDailyStats, getTopCreators, getTopResolvers, getAvgResponseTime, getTicketCountByWeekday } from '../db/tickets';
-import { getAllSupportMembers, isSupportMember } from '../db/support';
+import { getAllSupportMembers, isSupportMember, isStaffMember } from '../db/support';
 import { config } from '../config';
 import { getAuthorizationUrl, exchangeCodeForToken, getUserInfo } from './auth';
 
@@ -297,7 +297,7 @@ export function createWebServer(app?: App): express.Application {
     const slackId = user.slackId;
     const isOwner = slackId === config.slack.ownerUserId;
     const isAdmin = config.slack.adminUserIds.includes(slackId);
-    const isSupport = isSupportMember(slackId);
+    const isSupport = isStaffMember(slackId);
 
     if (!isOwner && !isAdmin && !isSupport) {
       res.status(403).send(deniedHtml(user.name));
@@ -580,39 +580,39 @@ function dashboardHtml(): string {
 <title>Support Dashboard</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a14 url(https://cdn.hackclub.com/019efbe9-dfb5-7efe-bf10-544a34a0fedd/abstract-perspective-graph-pattern-grid-vector-design_1017-45232.avif) center/cover fixed;color:#fff;min-height:100vh;font-size:13px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a14 url(https://cdn.hackclub.com/019efbe9-dfb5-7efe-bf10-544a34a0fedd/abstract-perspective-graph-pattern-grid-vector-design_1017-45232.avif) center/cover fixed;color:#fff;min-height:100vh;font-size:14px}
 body::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,0.85);pointer-events:none;z-index:-1}
-.top{background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);padding:10px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08)}
-.top h1{font-size:16px;color:#fff}
-.top a{color:#aaa;text-decoration:none;margin-left:12px;font-size:12px}
+.top{background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);padding:12px 28px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08)}
+.top h1{font-size:17px;color:#fff}
+.top a{color:#aaa;text-decoration:none;margin-left:14px;font-size:13px}
 .top a:hover{color:#fff}
-.cont{max-width:1000px;margin:0 auto;padding:20px;position:relative;z-index:1}
-.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
-.card{background:rgba(255,255,255,0.04);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.08);padding:14px;border-radius:6px;text-align:center}
-.card .n{font-size:28px;font-weight:700;color:#fff}
-.card .l{font-size:11px;color:#888;margin-top:2px}
-.panel{background:rgba(255,255,255,0.03);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:16px;margin-bottom:20px}
-.panel h2{font-size:14px;color:#ccc;margin-bottom:12px}
+.cont{max-width:1000px;margin:0 auto;padding:24px;position:relative;z-index:1}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px}
+.card{background:rgba(255,255,255,0.04);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.08);padding:18px;border-radius:6px;text-align:center}
+.card .n{font-size:32px;font-weight:700;color:#fff}
+.card .l{font-size:12px;color:#888;margin-top:3px}
+.panel{background:rgba(255,255,255,0.03);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:18px;margin-bottom:22px}
+.panel h2{font-size:15px;color:#ccc;margin-bottom:14px}
 table{width:100%;border-collapse:collapse}
-th,td{padding:7px 10px;text-align:left;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.06)}
+th,td{padding:8px 12px;text-align:left;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.06)}
 th{color:#888;font-weight:600}
 tr.t-row{cursor:pointer;transition:background .15s}
 tr.t-row:hover{background:rgba(255,255,255,0.04)}
-.badge{padding:1px 6px;border-radius:3px;font-size:11px;font-weight:600}
+.badge{padding:2px 7px;border-radius:3px;font-size:12px;font-weight:600}
 .badge.open{background:rgba(255,255,255,0.1);color:#fff}
 .badge.resolved{background:rgba(255,255,255,0.04);color:#888}
-.btn{padding:3px 10px;border-radius:3px;border:none;cursor:pointer;font-size:11px;font-weight:600}
+.btn{padding:4px 12px;border-radius:3px;border:none;cursor:pointer;font-size:12px;font-weight:600}
 .btn.resolve{background:rgba(255,255,255,0.08);color:#ccc;border:1px solid rgba(255,255,255,0.15)}
 .btn.resolve:hover{background:rgba(255,255,255,0.15);color:#fff}
 .btn.reopen{background:rgba(255,255,255,0.12);color:#fff}
 .btn.reopen:hover{background:rgba(255,255,255,0.2)}
-.pages{display:flex;justify-content:center;gap:6px;margin-top:12px}
-.pages button{padding:4px 10px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#ccc;border-radius:3px;cursor:pointer;font-size:11px}
+.pages{display:flex;justify-content:center;gap:6px;margin-top:14px}
+.pages button{padding:5px 12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#ccc;border-radius:3px;cursor:pointer;font-size:12px}
 .pages button.active{background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.2);color:#fff}
 .pages button:disabled{opacity:0.3;cursor:default}
-.chart-wrap{height:250px}
-.empty{color:#555;padding:20px;text-align:center;font-size:12px}
-.err{color:#ff6b6b;padding:20px;text-align:center;font-size:12px}
+.chart-wrap{height:260px}
+.empty{color:#555;padding:24px;text-align:center;font-size:13px}
+.err{color:#ff6b6b;padding:24px;text-align:center;font-size:13px}
 .thread{padding:6px 8px;margin:4px 0;border-radius:4px;background:#0d1a32;font-size:12px}
 .thread .author{color:#e94560;font-weight:600;margin-bottom:2px}
 .thread .body{white-space:pre-wrap;word-break:break-word;color:#bbb}
@@ -795,24 +795,24 @@ function statsPageHtml(): string {
 <title>Stats — Support</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a14 url(https://cdn.hackclub.com/019efbe9-dfb5-7efe-bf10-544a34a0fedd/abstract-perspective-graph-pattern-grid-vector-design_1017-45232.avif) center/cover fixed;color:#fff;min-height:100vh;font-size:13px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a14 url(https://cdn.hackclub.com/019efbe9-dfb5-7efe-bf10-544a34a0fedd/abstract-perspective-graph-pattern-grid-vector-design_1017-45232.avif) center/cover fixed;color:#fff;min-height:100vh;font-size:14px}
 body::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,0.85);pointer-events:none;z-index:-1}
-.top{background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);padding:10px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08)}
-.top h1{font-size:16px;color:#fff}
-.top nav a{color:#aaa;text-decoration:none;margin-left:12px;font-size:12px}
+.top{background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);padding:12px 28px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08)}
+.top h1{font-size:17px;color:#fff}
+.top nav a{color:#aaa;text-decoration:none;margin-left:14px;font-size:13px}
 .top nav a:hover{color:#fff}
 .cont{max-width:1000px;margin:0 auto;padding:24px;position:relative;z-index:1}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
-.panel{background:rgba(255,255,255,0.03);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:16px}
-.panel h2{font-size:14px;color:#ccc;margin-bottom:12px}
-.chart-wrap{height:220px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:22px}
+.panel{background:rgba(255,255,255,0.03);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:18px}
+.panel h2{font-size:15px;color:#ccc;margin-bottom:14px}
+.chart-wrap{height:240px}
 table{width:100%;border-collapse:collapse}
-th,td{padding:6px 10px;text-align:left;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.06)}
+th,td{padding:7px 12px;text-align:left;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.06)}
 th{color:#888;font-weight:600}
-td .bar{display:inline-block;height:8px;background:rgba(255,255,255,0.3);border-radius:2px;margin-left:6px;vertical-align:middle}
-.stat-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px}
+td .bar{display:inline-block;height:8px;background:rgba(255,255,255,0.3);border-radius:2px;margin-left:8px;vertical-align:middle}
+.stat-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:14px}
 .stat-row .val{color:#fff;font-weight:700}
-.empty{color:#555;padding:20px;text-align:center}
+.empty{color:#555;padding:24px;text-align:center;font-size:13px}
 @media(max-width:700px){.grid{grid-template-columns:1fr}}
 </style>
 </head>

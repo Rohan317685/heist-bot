@@ -2,6 +2,7 @@ import { config } from './config';
 import { createSlackApp } from './slack/app';
 import { createWebServer } from './web/server';
 import { initUserNameCache } from './web/server';
+import { seedAdminsFromEnv } from './db/support';
 
 async function main(): Promise<void> {
   console.log('Starting Heist Support Bot...');
@@ -9,6 +10,9 @@ async function main(): Promise<void> {
   const slackApp = createSlackApp();
   await slackApp.start();
   console.log('Slack bot is running (Socket Mode)');
+
+  seedAdminsFromEnv();
+  console.log('Admins seeded from env');
 
   const webApp = createWebServer(slackApp);
   webApp.listen(config.web.port, () => {

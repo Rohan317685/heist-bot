@@ -39,3 +39,42 @@ export function getAllSupportMembers(): SupportMember[] {
     .prepare('SELECT * FROM support_team ORDER BY added_at ASC')
     .all() as SupportMember[];
 }
+
+export function addAdmin(userId: string, addedBy: string): boolean {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const result = db
+    .prepare('INSERT OR IGNORE INTO admins (user_id, added_by, added_at) VALUES (?, ?, ?)')
+    .run(userId, addedBy, now);
+  addSupportMember(userId, addedBy);
+  return result.changes > 0;
+}
+
+export function removeAdmin(userId: string): boolean {
+  const db = getDb();
+  const result = db.prepare('DELETE FROM admins WHERE user_id = ?').run(userId);
+  return result.changes > 0;
+}
+
+export function isAdminMember(userId: string): boolean {
+  const db = getDb();
+  const row = db.prepare('SELECT user_id FROM admins WHERE user_id = ?').get(userId);
+  return !!row;
+}
+
+export function isStaffMember(userId: string): boolean {
+  return isSupportMember(userId) || isAdminMember(userId);
+}
+
+export function seedAdminsFromEnv(): void {
+  const ids = require('../config').config.slack.adminUserIds;
+  if (!ids || ids.length === 0) return;
+  const db = getDb();
+  const now = new Date().toISOString();
+  const insert = db.prepare('INSERT OR IGNORE INTO admins (user_id, added_by, added_at) VALUES (?, ?, ?)');
+  const support = db.prepare('INSERT OR IGNORE INTO support_team (user_id, added_by, added_at) VALUES (?, ?, ?)');
+  for (const id of ids) {
+    insert.run(id, 'env_seed', now);
+    support.run(id, 'env_seed', now);
+  }
+}

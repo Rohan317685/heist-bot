@@ -1,7 +1,7 @@
 import { App } from '@slack/bolt';
 import { registerSupportCommand } from './commands/support';
 import { getTicket, resolveTicket, createTicket, reopenTicket } from '../db/tickets';
-import { isSupportMember } from '../db/support';
+import { isStaffMember } from '../db/support';
 import { config } from '../config';
 
 export function createSlackApp(): App {
@@ -29,7 +29,7 @@ export function createSlackApp(): App {
     if (!ticket || ticket.status === 'resolved') return;
 
     const isOriginalPoster = ticket.user_id === clickerId;
-    const isSupport = isSupportMember(clickerId);
+    const isSupport = isStaffMember(clickerId);
 
     if (!isOriginalPoster && !isSupport) {
       await respond({

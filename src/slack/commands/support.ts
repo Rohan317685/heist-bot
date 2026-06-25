@@ -1,14 +1,12 @@
 import { App } from '@slack/bolt';
 import { config } from '../../config';
-import { addSupportMember, removeSupportMember } from '../../db/support';
+import { addSupportMember, removeSupportMember, addAdmin, removeAdmin, isAdminMember } from '../../db/support';
 
 function extractUserId(text: string): string | null {
   const mentionMatch = text.match(/<@([A-Z0-9]+)(?:\|[^>]+)?>/);
   if (mentionMatch) return mentionMatch[1];
-
   const idMatch = text.match(/\b(U[A-Z0-9]{8,})\b/);
   if (idMatch) return idMatch[1];
-
   return null;
 }
 
@@ -19,7 +17,7 @@ export function registerSupportCommand(app: App): void {
 
       const commandUserId = command.user_id;
       const isOwner = commandUserId === config.slack.ownerUserId;
-      const isAdmin = !isOwner && config.slack.adminUserIds.includes(commandUserId);
+      const isAdmin = !isOwner && isAdminMember(commandUserId);
 
       if (!isOwner && !isAdmin) {
         await respond({
@@ -30,75 +28,86 @@ export function registerSupportCommand(app: App): void {
       }
 
       const text = command.text.trim();
-
-      const isEnable = /^enable\b/i.test(text);
-      const isDisable = /^disable\b/i.test(text);
-
-      if (!isEnable && !isDisable) {
-        const hint = isOwner
-          ? '`/support enable @user` or `/support disable @user`'
-          : '`/support enable @user` or `/support disable @user` (you cannot disable the owner or other admins)';
-        await respond({
-          text: `Usage: ${hint}\nYou can also use a raw user ID: \`/support enable U0A17JG84G6\``,
-          response_type: 'ephemeral',
-        });
-        return;
-      }
-
+      const parts = text.split(/\s+/);
+      const action = parts[0]?.toLowerCase() || '';
       const targetUserId = extractUserId(text);
 
       if (!targetUserId) {
         await respond({
-          text: 'Could not find a user ID. Use `@user` (with autocomplete) or a raw user ID like `U0A17JG84G6`.',
+          text: 'Could not find a user. Use @mention or raw user ID.\n```\n/support admin @user\n/support unadmin @user\n/support enable @user\n/support disable @user\n```',
           response_type: 'ephemeral',
         });
         return;
       }
 
-      if (isDisable && !isOwner) {
-        if (targetUserId === config.slack.ownerUserId) {
-          await respond({
-            text: 'You cannot disable the owner.',
-            response_type: 'ephemeral',
-          });
+      if (action === 'admin') {
+        if (!isOwner) {
+          await respond({ text: 'Only the owner can promote admins.', response_type: 'ephemeral' });
           return;
         }
-        if (config.slack.adminUserIds.includes(targetUserId)) {
-          await respond({
-            text: 'You cannot disable another admin.',
-            response_type: 'ephemeral',
-          });
-          return;
-        }
+        const added = addAdmin(targetUserId, commandUserId);
+        await respond({
+          text: added
+            ? `<@${targetUserId}> is now an admin.`
+            : `<@${targetUserId}> is already an admin.`,
+          response_type: 'ephemeral',
+        });
+        return;
       }
 
-      if (isEnable) {
-        const added = addSupportMember(targetUserId, commandUserId);
-        if (added) {
-          await respond({
-            text: `<@${targetUserId}> has been added to the support team.`,
-            response_type: 'ephemeral',
-          });
-        } else {
-          await respond({
-            text: `<@${targetUserId}> is already on the support team.`,
-            response_type: 'ephemeral',
-          });
+      if (action === 'unadmin') {
+        if (!isOwner) {
+          await respond({ text: 'Only the owner can demote admins.', response_type: 'ephemeral' });
+          return;
         }
-      } else {
-        const removed = removeSupportMember(targetUserId);
-        if (removed) {
-          await respond({
-            text: `<@${targetUserId}> has been removed from the support team.`,
-            response_type: 'ephemeral',
-          });
-        } else {
-          await respond({
-            text: `<@${targetUserId}> is not on the support team.`,
-            response_type: 'ephemeral',
-          });
+        if (targetUserId === config.slack.ownerUserId) {
+          await respond({ text: 'The owner cannot be demoted.', response_type: 'ephemeral' });
+          return;
         }
+        const removed = removeAdmin(targetUserId);
+        await respond({
+          text: removed
+            ? `<@${targetUserId}> is no longer an admin.`
+            : `<@${targetUserId}> is not an admin.`,
+          response_type: 'ephemeral',
+        });
+        return;
       }
+
+      if (action === 'enable') {
+        const added = addSupportMember(targetUserId, commandUserId);
+        await respond({
+          text: added
+            ? `<@${targetUserId}> added to support team.`
+            : `<@${targetUserId}> is already on the support team.`,
+          response_type: 'ephemeral',
+        });
+        return;
+      }
+
+      if (action === 'disable') {
+        if (targetUserId === config.slack.ownerUserId) {
+          await respond({ text: 'The owner cannot be disabled.', response_type: 'ephemeral' });
+          return;
+        }
+        if (isAdmin && isAdminMember(targetUserId)) {
+          await respond({ text: 'You cannot disable another admin.', response_type: 'ephemeral' });
+          return;
+        }
+        const removed = removeSupportMember(targetUserId);
+        await respond({
+          text: removed
+            ? `<@${targetUserId}> removed from support team.`
+            : `<@${targetUserId}> is not on the support team.`,
+          response_type: 'ephemeral',
+        });
+        return;
+      }
+
+      await respond({
+        text: 'Usage:\n```\n/support admin @user     (owner only)\n/support unadmin @user  (owner only)\n/support enable @user\n/support disable @user\n```',
+        response_type: 'ephemeral',
+      });
     } catch (err) {
       console.error('[/support] Error:', err);
     }

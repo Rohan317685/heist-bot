@@ -38,12 +38,13 @@ export async function getUserInfo(accessToken: string): Promise<HackClubUser | n
     return null;
   }
 
-  const data = (await res.json()) as { identity?: { slack_id?: string; first_name?: string; last_name?: string; primary_email?: string } };
+  const data = (await res.json()) as { identity?: { slack_id?: string; first_name?: string; last_name?: string; name?: string; primary_email?: string } };
   const identity = data.identity || {};
+  console.log('[auth] User info from HC:', JSON.stringify(identity));
 
   return {
     slackId: identity.slack_id || '',
-    name: [identity.first_name, identity.last_name].filter(Boolean).join(' ') || 'Unknown',
+    name: identity.first_name || identity.name || 'Support',
     email: identity.primary_email || '',
   };
 }

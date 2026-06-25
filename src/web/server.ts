@@ -312,9 +312,12 @@ export function createWebServer(app?: App): express.Application {
   });
 
   web.get('/auth/logout', (req, res) => {
-    req.session.destroy((err) => {
-      res.clearCookie('connect.sid');
-      res.redirect('/');
+    req.session.regenerate((err) => {
+      if (err) {
+        res.redirect('/');
+        return;
+      }
+      res.redirect('/auth/login');
     });
   });
 

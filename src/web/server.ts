@@ -69,14 +69,7 @@ async function lookupSlackNames(userIds: string[]): Promise<Map<string, string>>
     initUserNameCache();
   }
 
-  if (userCacheLoading) {
-    for (let i = 0; i < 30; i++) {
-      await new Promise((r) => setTimeout(r, 1000));
-      if (userCacheLoaded) break;
-    }
-  }
-
-  if (!userCacheLoaded || userNameCache.size === 0) {
+  if (!userCacheLoaded) {
     for (const id of userIds) result.set(id, id);
     return result;
   }

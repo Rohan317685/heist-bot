@@ -2,8 +2,10 @@ import express from 'express';
 import path from 'path';
 import session from 'express-session';
 import { App } from '@slack/bolt';
-import { getTicketStats, getAllTickets, getTicket, getTicketByNumber, resolveTicket, reopenTicket, getDailyStats, getTopCreators, getTopResolvers, getAvgResponseTime, getTicketCountByWeekday } from '../db/tickets';
+import { getTicketStats, getAllTickets, getTicket, getTicketByNumber, resolveTicket, reopenTicket, getDailyStats, getTopCreators, getTopResolvers, getAvgResponseTime, getTicketCountByWeekday, getOldestOpen, updateLastActivity, assignTicket, getStaleClaimed, getMyTickets } from '../db/tickets';
 import { getAllSupportMembers, isSupportMember, isStaffMember } from '../db/support';
+import { logAudit, getAuditLogs } from '../db/audit';
+import { addNote, getNotes } from '../db/notes';
 import { config } from '../config';
 import { getAuthorizationUrl, exchangeCodeForToken, getUserInfo } from './auth';
 
@@ -297,24 +299,32 @@ export function createWebServer(app?: App): express.Application {
     }
 
     const slackId = user.slackId;
+    const displayName = user.name || slackId;
+
     const isOwner = slackId === config.slack.ownerUserId;
     const isAdmin = config.slack.adminUserIds.includes(slackId);
     const isSupport = isStaffMember(slackId);
 
     if (!isOwner && !isAdmin && !isSupport) {
-      res.status(403).send(deniedHtml(user.name));
+      res.status(403).send(deniedHtml(displayName));
       return;
     }
 
     req.session.slackId = slackId;
-    req.session.name = user.name;
+    req.session.name = displayName;
     req.session.isAuthorized = true;
+
+    logAudit(slackId, displayName, 'login', `Logged in via Hack Club${isOwner ? ' (owner)' : isAdmin ? ' (admin)' : ''}`);
+    console.log(`[audit] Login: ${displayName} (${slackId})`);
 
     res.redirect('/');
   });
 
   web.get('/auth/logout', (req, res) => {
+    const slId = req.session.slackId;
+    const nm = req.session.name;
     req.session.regenerate((err) => {
+      if (slId) logAudit(slId, nm || slId, 'logout', 'Logged out');
       res.send(logoutPageHtml());
     });
   });
@@ -371,7 +381,9 @@ export function createWebServer(app?: App): express.Application {
       return;
     }
     const resolverId = req.session.slackId || 'web';
+    const resolverName = req.session.name || resolverId;
     resolveTicket(threadTs, resolverId);
+    logAudit(resolverId, resolverName, 'resolve', `Resolved ticket #${ticket.ticket_number} from web`);
 
     if (slackApp) {
       try {
@@ -399,7 +411,10 @@ export function createWebServer(app?: App): express.Application {
       res.json({ ok: true, message: 'Already open' });
       return;
     }
+    const reopenerId = req.session.slackId || 'web';
+    const reopenerName = req.session.name || reopenerId;
     reopenTicket(threadTs);
+    logAudit(reopenerId, reopenerName, 'reopen', `Reopened ticket #${ticket.ticket_number} from web`);
 
     if (slackApp) {
       try {
@@ -469,6 +484,7 @@ export function createWebServer(app?: App): express.Application {
       res.status(404).json({ error: 'Ticket not found' });
       return;
     }
+    updateLastActivity(threadTs);
     if (!slackApp) {
       res.status(500).json({ error: 'Slack not connected' });
       return;
@@ -556,6 +572,66 @@ export function createWebServer(app?: App): express.Application {
       console.error('[web] Stats detail error:', err);
       res.json({ avgResponseTime: null, byWeekday: [] });
     }
+  });
+
+  web.get('/api/tickets/mine', requireAuth, async (req, res) => {
+    if (!req.session.slackId) { res.json([]); return; }
+    const tickets = getMyTickets(req.session.slackId);
+    const userIds = [...new Set(tickets.map((t) => t.user_id))];
+    const names = await lookupSlackNames(userIds);
+    res.json(tickets.map((t) => ({ ...t, user_name: names.get(t.user_id) || t.user_id })));
+  });
+
+  web.post('/api/tickets/:threadTs/assign', requireAuth, async (req, res) => {
+    const threadTs = req.params.threadTs as string;
+    const ticket = getTicket(threadTs);
+    if (!ticket) { res.status(404).json({ error: 'Ticket not found' }); return; }
+    const assigneeId = req.body?.userId;
+    if (!assigneeId) { res.status(400).json({ error: 'userId required' }); return; }
+    if (ticket.status !== 'open') { res.status(400).json({ error: 'Can only assign open tickets' }); return; }
+
+    assignTicket(threadTs, assigneeId);
+    logAudit(req.session.slackId || '', req.session.name || '', 'assign', `Assigned ticket #${ticket.ticket_number} to ${assigneeId}`);
+
+    res.json({ ok: true });
+  });
+
+  web.get('/api/tickets/oldest', requireAuth, async (_req, res) => {
+    const tickets = getOldestOpen(5);
+    const userIds = [...new Set(tickets.map((t) => t.user_id))];
+    const names = await lookupSlackNames(userIds);
+    res.json(tickets.map((t) => ({ ...t, user_name: names.get(t.user_id) || t.user_id })));
+  });
+
+  web.get('/api/tickets/:threadTs/notes', requireAuth, (_req, res) => {
+    res.json(getNotes(_req.params.threadTs as string));
+  });
+
+  web.post('/api/tickets/:threadTs/notes', requireAuth, (req, res) => {
+    const threadTs = req.params.threadTs as string;
+    const ticket = getTicket(threadTs);
+    if (!ticket) { res.status(404).json({ error: 'Ticket not found' }); return; }
+    const note = req.body?.note;
+    if (!note || typeof note !== 'string' || !note.trim()) {
+      res.status(400).json({ error: 'Note text required' });
+      return;
+    }
+    addNote(threadTs, req.session.slackId || '', req.session.name || '', note.trim());
+    res.json({ ok: true });
+  });
+
+  web.get('/api/audit', requireAuth, (req, res) => {
+    if (req.session.slackId !== config.slack.ownerUserId) {
+      res.status(403).json({ error: 'Only the owner can view audit logs' });
+      return;
+    }
+    const limit = parseInt((req.query.limit as string) || '100', 10);
+    const offset = parseInt((req.query.offset as string) || '0', 10);
+    const action = req.query.action as string | undefined;
+    const fromDate = req.query.from as string | undefined;
+    const toDate = req.query.to as string | undefined;
+    const search = req.query.search as string | undefined;
+    res.json(getAuditLogs(limit, offset, action, fromDate, toDate, search));
   });
 
   web.get('/stats', requireAuth, (_req, res) => {

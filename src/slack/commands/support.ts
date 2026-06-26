@@ -1,6 +1,7 @@
 import { App } from '@slack/bolt';
 import { config } from '../../config';
 import { addSupportMember, removeSupportMember, addAdmin, removeAdmin, isAdminMember } from '../../db/support';
+import { logAudit } from '../../db/audit';
 
 function extractUserId(text: string): string | null {
   const mentionMatch = text.match(/<@([A-Z0-9]+)(?:\|[^>]+)?>/);
@@ -46,6 +47,7 @@ export function registerSupportCommand(app: App): void {
           return;
         }
         const added = addAdmin(targetUserId, commandUserId);
+        logAudit(commandUserId, commandUserId, 'admin', `Promoted ${targetUserId} to admin`);
         await respond({
           text: added
             ? `<@${targetUserId}> is now an admin.`
@@ -65,6 +67,7 @@ export function registerSupportCommand(app: App): void {
           return;
         }
         const removed = removeAdmin(targetUserId);
+        logAudit(commandUserId, commandUserId, 'unadmin', `Demoted ${targetUserId} from admin`);
         await respond({
           text: removed
             ? `<@${targetUserId}> is no longer an admin.`
@@ -76,6 +79,7 @@ export function registerSupportCommand(app: App): void {
 
       if (action === 'enable') {
         const added = addSupportMember(targetUserId, commandUserId);
+        logAudit(commandUserId, commandUserId, 'enable', `Added ${targetUserId} to support team`);
         await respond({
           text: added
             ? `<@${targetUserId}> added to support team.`
@@ -95,6 +99,7 @@ export function registerSupportCommand(app: App): void {
           return;
         }
         const removed = removeSupportMember(targetUserId);
+        logAudit(commandUserId, commandUserId, 'disable', `Removed ${targetUserId} from support team`);
         await respond({
           text: removed
             ? `<@${targetUserId}> removed from support team.`

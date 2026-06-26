@@ -9,6 +9,8 @@ export interface Ticket {
   created_at: string;
   resolved_at: string | null;
   resolved_by: string | null;
+  claimed_by: string | null;
+  claimed_at: string | null;
 }
 
 export function createTicket(
@@ -160,4 +162,44 @@ export function getAvgResponseTime(): { avgHours: number } | null {
     )
     .get() as { avgHours: number } | undefined;
   return row?.avgHours != null ? { avgHours: row.avgHours } : null;
+}
+
+export function getOldestOpen(limit = 5): Ticket[] {
+  const db = getDb();
+  return db
+    .prepare("SELECT * FROM tickets WHERE status = 'open' ORDER BY created_at ASC LIMIT ?")
+    .all(limit) as Ticket[];
+}
+
+export function getStaleClaimed(days = 3): Ticket[] {
+  const db = getDb();
+  return db
+    .prepare(
+      `SELECT * FROM tickets WHERE status = 'open' AND claimed_by IS NOT NULL
+       AND julianday('now') - julianday(COALESCE(last_activity_at, created_at)) >= ?`,
+    )
+    .all(days) as Ticket[];
+}
+
+export function updateLastActivity(threadTs: string): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.prepare('UPDATE tickets SET last_activity_at = ? WHERE thread_ts = ?').run(now, threadTs);
+}
+
+export function assignTicket(threadTs: string, userId: string): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.prepare('UPDATE tickets SET claimed_by = ?, claimed_at = ? WHERE thread_ts = ?').run(
+    userId,
+    now,
+    threadTs,
+  );
+}
+
+export function getMyTickets(userId: string): Ticket[] {
+  const db = getDb();
+  return db
+    .prepare("SELECT * FROM tickets WHERE claimed_by = ? AND status = 'open' ORDER BY created_at ASC LIMIT 20")
+    .all(userId) as Ticket[];
 }

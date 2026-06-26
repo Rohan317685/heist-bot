@@ -34,6 +34,8 @@
     {#if isAuthed}
       <a href="/dashboard">Dashboard</a>
       <a href="/stats">Stats</a>
+      <a href="/mine">My Tickets</a>
+      <a href="/audit">Owner Tools</a>
       <span class="user">{userName || 'Loading...'}</span>
       <a href="/auth/logout">Logout</a>
     {:else}
@@ -48,8 +50,7 @@
 
 <style>
   .top {
-    background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.9);
     padding: 12px 28px;
     display: flex;
     justify-content: space-between;

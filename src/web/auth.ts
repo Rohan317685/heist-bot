@@ -54,7 +54,7 @@ export function getAuthorizationUrl(): string {
     client_id: config.oauth.clientId,
     redirect_uri: config.oauth.redirectUri,
     response_type: 'code',
-    scope: 'openid profile slack_id',
+    scope: 'openid profile name slack_id',
   });
   return `https://auth.hackclub.com/oauth/authorize?${params.toString()}`;
 }

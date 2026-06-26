@@ -53,6 +53,25 @@ function initializeDb(db: Database.Database): void {
       added_by TEXT NOT NULL,
       added_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      user_name TEXT NOT NULL,
+      action TEXT NOT NULL,
+      details TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS internal_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_ts TEXT NOT NULL,
+      author_id TEXT NOT NULL,
+      author_name TEXT NOT NULL,
+      note TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (thread_ts) REFERENCES tickets(thread_ts)
+    );
   `);
 
   addColumnIfMissing(db, 'tickets', 'ticket_number', 'INTEGER');

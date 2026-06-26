@@ -1,7 +1,8 @@
 import { App } from '@slack/bolt';
 import { registerSupportCommand } from './commands/support';
-import { getTicket, resolveTicket, createTicket, reopenTicket } from '../db/tickets';
+import { getTicket, resolveTicket, createTicket, reopenTicket, updateLastActivity } from '../db/tickets';
 import { isStaffMember } from '../db/support';
+import { logAudit } from '../db/audit';
 import { config } from '../config';
 
 export function createSlackApp(): App {
@@ -40,6 +41,7 @@ export function createSlackApp(): App {
     }
 
     resolveTicket(ticketId, clickerId);
+    logAudit(clickerId, clickerId, 'resolve', `Resolved ticket #${ticket.ticket_number} from Slack`);
 
     await client.chat.postMessage({
       channel: ticket.channel_id,
@@ -59,6 +61,7 @@ function registerMessageEvents(app: App): void {
 
     if (!(message as any).thread_ts) {
       createTicket(message.ts!, ch, (message as any).user);
+      updateLastActivity(message.ts!);
       await say({
         thread_ts: message.ts,
         text: `Hi welcome to heist! Please check out the <${config.faq.link}|FAQ> and a member from our support team will be with you soon!`,
@@ -88,6 +91,8 @@ function registerMessageEvents(app: App): void {
       const ticket = getTicket((message as any).thread_ts);
       if (ticket && ticket.status === 'resolved') {
         reopenTicket(ticket.thread_ts);
+        updateLastActivity(ticket.thread_ts);
+        logAudit((message as any).user, (message as any).user, 'reopen', `Reopened ticket #${ticket.ticket_number} via thread reply`);
         await client.chat.postMessage({
           channel: ticket.channel_id,
           thread_ts: ticket.thread_ts,

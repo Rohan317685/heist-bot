@@ -11,21 +11,57 @@
 
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+  function renderChart(data: { weekday: number; count: number }[]) {
+    const canvas = document.getElementById('chartCanvas') as HTMLCanvasElement | null;
+    if (!canvas) return;
+    function tryRender() {
+      if (typeof (window as any).Chart === 'undefined') {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+        s.onload = () => doRender();
+        document.head.appendChild(s);
+        return;
+      }
+      doRender();
+    }
+    function doRender() {
+      new (window as any).Chart(canvas!.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+          datasets: [{
+            label: 'Tickets',
+            data: [0, 1, 2, 3, 4, 5, 6].map(i => {
+              const d = data.find(w => w.weekday === i);
+              return d ? d.count : 0;
+            }),
+            backgroundColor: 'rgba(255,255,255,0.2)',
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: '#888', font: { size: 11 } } } },
+          scales: {
+            x: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#333' } },
+            y: { ticks: { color: '#666', font: { size: 10 }, beginAtZero: true, stepSize: 1 }, grid: { color: '#333' } },
+          },
+        },
+      });
+    }
+    setTimeout(tryRender, 100);
+  }
+
   onMount(async () => {
     try { lb = await api<Leaderboard>('/api/stats/leaderboard'); } catch (e) { /* */ }
-    try { ds = await api<DetailStats>('/api/stats/detail'); } catch (e) { /* */ }
-    renderChart();
+    try {
+      ds = await api<DetailStats>('/api/stats/detail');
+      renderChart(ds.byWeekday);
+    } catch (e) { /* */ }
   });
-
-  function renderChart() {
-    // Chart.js will load dynamically via the script tag below
-  }
 </script>
 
-<svelte:head>
-  <title>Stats — Support</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-</svelte:head>
+<svelte:head><title>Stats — Support</title></svelte:head>
 
 <div class="grid">
   <div class="panel">
@@ -47,7 +83,6 @@
       </table>
     {/if}
   </div>
-
   <div class="panel">
     <h2>Top Creators</h2>
     {#if lb.creators.length === 0}
@@ -71,7 +106,7 @@
 
 <div class="panel">
   <h2>Tickets by Day of Week</h2>
-  <div class="chart-wrap"><canvas id="weekdayChart"></canvas></div>
+  <div class="chart-wrap"><canvas id="chartCanvas"></canvas></div>
 </div>
 
 <div class="panel">
@@ -81,43 +116,12 @@
   {#if ds.byWeekday.length}
   {@const busiest = ds.byWeekday.reduce((a, b) => b.count > a.count ? b : a, { weekday: 0, count: 0 })}
   <div class="stat-row"><span>Busiest Day</span><span class="val">{dayNames[busiest.weekday]}</span></div>
-{/if}
+  {/if}
 </div>
-
-<canvas id="weekdayChart" style="display:none"></canvas>
-
-{#key ds.byWeekday}
-  <script>
-    (function() {
-      const canvas = document.getElementById('weekdayChart');
-      if (!canvas || !window.Chart) return;
-      const data = [{JSON.stringify(ds.byWeekday)}];
-      new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
-          datasets: [{
-            label: 'Tickets',
-            data: [0,1,2,3,4,5,6].map(i => { const d = data.find(w => w.weekday === i); return d ? d.count : 0; }),
-            backgroundColor: 'rgba(255,255,255,0.2)'
-          }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { labels: { color: '#888', font: { size: 11 } } } },
-          scales: {
-            x: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#333' } },
-            y: { ticks: { color: '#666', font: { size: 10 }, beginAtZero: true, stepSize: 1 }, grid: { color: '#333' } }
-          }
-        }
-      });
-    })();
-  </script>
-{/key}
 
 <style>
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 22px; }
-  .panel { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(4px); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 6px; padding: 18px; margin-bottom: 22px; }
+  .panel { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 6px; padding: 18px; margin-bottom: 22px; }
   .panel h2 { font-size: 15px; color: #ccc; margin-bottom: 14px; }
   .chart-wrap { height: 240px; }
   table { width: 100%; border-collapse: collapse; }

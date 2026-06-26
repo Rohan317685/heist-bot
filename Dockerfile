@@ -9,7 +9,11 @@ COPY . .
 
 RUN npm run build
 
-# Create persistent data directory
+WORKDIR /app/frontend
+RUN npm install && npm run build
+
+WORKDIR /app
+
 RUN mkdir -p /app/data
 
 EXPOSE 3000

@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import session from 'express-session';
 import { App } from '@slack/bolt';
 import { getTicketStats, getAllTickets, getTicket, getTicketByNumber, resolveTicket, reopenTicket, getDailyStats, getTopCreators, getTopResolvers, getAvgResponseTime, getTicketCountByWeekday } from '../db/tickets';
@@ -244,6 +245,7 @@ export function createWebServer(app?: App): express.Application {
   const web = express();
   web.use(express.json());
   web.use(express.urlencoded({ extended: true }));
+  web.use(express.static(path.join(__dirname, '..', '..', 'frontend', 'build')));
   web.use((_req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -558,6 +560,14 @@ export function createWebServer(app?: App): express.Application {
 
   web.get('/stats', requireAuth, (_req, res) => {
     res.send(statsPageHtml());
+  });
+
+  web.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/auth')) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'build', 'index.html'));
   });
 
   web.get('/', requireAuth, (_req, res) => {
